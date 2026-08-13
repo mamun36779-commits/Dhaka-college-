@@ -23,6 +23,17 @@ jobs:
       with:
         channel: 'stable'
 
+    - name: Recreate Complete Flutter Project
+      run: |
+        mkdir temp_dir
+        cp lib/main.dart temp_dir/main.dart 2>/dev/null || true
+        cp pubspec.yaml temp_dir/pubspec.yaml 2>/dev/null || true
+        rm -rf lib pubspec.yaml android ios web macos windows linux
+        flutter create . --org com.dcsc.app --project-name dcsc_app
+        cp temp_dir/main.dart lib/main.dart 2>/dev/null || true
+        cp temp_dir/pubspec.yaml pubspec.yaml 2>/dev/null || true
+        rm -rf temp_dir
+
     - name: Install Dependencies
       run: flutter pub get
 
