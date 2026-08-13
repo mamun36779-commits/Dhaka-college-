@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(const DCSCApp());
@@ -10,100 +12,22 @@ class DCSCApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'DCSC App',
       debugShowCheckedModeBanner: false,
-      title: 'Dhaka College Science Club',
       theme: ThemeData(
-        primarySwatch: Colors.deepPurple,
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF005088),
+          primary: const Color(0xFF005088),
+          secondary: const Color(0xFF11CAA0),
+        ),
+        useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const SplashScreen(),
+      home: const MainHomeScreen(),
     );
   }
 }
 
-// ---------------- 1. Splash Screen ----------------
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E1B4B),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-              const CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.school, size: 60, color: Colors.white),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'DCSC',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-              const Text(
-                'DHAKA COLLEGE\nSCIENCE CLUB',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Inspire | Explore | Innovate',
-                style: TextStyle(color: Colors.amber, fontSize: 14),
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MainHomeScreen()),
-                    );
-                  },
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Get Started', style: TextStyle(fontSize: 16, color: Colors.white)),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, color: Colors.white),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------- Main Bottom Navigation Wrapper ----------------
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
 
@@ -112,225 +36,378 @@ class MainHomeScreen extends StatefulWidget {
 }
 
 class _MainHomeScreenState extends State<MainHomeScreen> {
-  int _currentIndex = 0;
+  int _selectedIndex = 0;
+  bool _isAdmin = false;
+  final String _adminPin = "1234"; // Default Admin PIN
 
-  final List<Widget> _screens = [
-    const DashboardTab(),
-    const NoticeTab(),
-    const EventsTab(),
-    const GalleryTab(),
-    const MoreTab(),
+  // Mock initial data with Live DB fallback
+  List<Map<String, String>> _events = [
+    {
+      "title": "Annual Science Fair 2026",
+      "date": "25 March, 2026",
+      "desc": "Join us for the biggest science fair at Dhaka College campus."
+    },
+    {
+      "title": "Astronomy & Stargazing Workshop",
+      "date": "10 April, 2026",
+      "desc": "Learn telescope handling and observation techniques."
+    },
   ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF6366F1),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.campaign), label: 'Notice'),
-          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Events'),
-          BottomNavigationBarItem(icon: Icon(Icons.image), label: 'Gallery'),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+  List<Map<String, String>> _members = [
+    {"name": "MD Abdullah", "role": "President", "dept": "Physics"},
+    {"name": "Tanvir Ahmed", "role": "General Secretary", "dept": "Chemistry"},
+    {"name": "Sajid Hasan", "role": "Treasurer", "dept": "Math"},
+  ];
+
+  void _loginAdmin() {
+    TextEditingController pinController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Admin Access"),
+        content: TextField(
+          controller: pinController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Enter 4-digit PIN",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (pinController.text == _adminPin) {
+                setState(() {
+                  _isAdmin = true;
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Admin mode enabled!")),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Incorrect PIN!")),
+                );
+              }
+            },
+            child: const Text("Login"),
+          ),
         ],
       ),
     );
   }
-}
 
-// ---------------- 2. Home Dashboard Screen ----------------
-class DashboardTab extends StatelessWidget {
-  const DashboardTab({super.key});
+  void _addEventDialog() {
+    TextEditingController titleCtrl = TextEditingController();
+    TextEditingController dateCtrl = TextEditingController();
+    TextEditingController descCtrl = TextEditingController();
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: const Icon(Icons.menu, color: Colors.black),
-        title: const Text('DCSC', style: TextStyle(color: Color(0xFF4C1D95), fontWeight: FontWeight.bold)),
-        centerTitle: true,
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add New Event"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: "Event Title"),
+              ),
+              TextField(
+                controller: dateCtrl,
+                decoration: const InputDecoration(labelText: "Date (e.g. 12 May)"),
+              ),
+              TextField(
+                controller: descCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: "Description"),
+              ),
+            ],
+          ),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black),
-            onPressed: () {},
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleCtrl.text.isNotEmpty) {
+                setState(() {
+                  _events.add({
+                    "title": titleCtrl.text,
+                    "date": dateCtrl.text,
+                    "desc": descCtrl.text,
+                  });
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Add Event"),
           )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1B4B),
-                borderRadius: BorderRadius.circular(16),
+    );
+  }
+
+  void _addMemberDialog() {
+    TextEditingController nameCtrl = TextEditingController();
+    TextEditingController roleCtrl = TextEditingController();
+    TextEditingController deptCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add Executive Member"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "Member Name"),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'DHAKA COLLEGE\nSCIENCE CLUB',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Inspire. Explore. Innovate.', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF1E1B4B),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
-                    onPressed: () {},
-                    child: const Text('About DCSC →'),
-                  )
-                ],
+              TextField(
+                controller: roleCtrl,
+                decoration: const InputDecoration(labelText: "Role/Designation"),
               ),
+              TextField(
+                controller: deptCtrl,
+                decoration: const InputDecoration(labelText: "Department"),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty) {
+                setState(() {
+                  _members.add({
+                    "name": nameCtrl.text,
+                    "role": roleCtrl.text,
+                    "dept": deptCtrl.text,
+                  });
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Add Member"),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    List<Widget> pages = [
+      _buildHomeView(),
+      _buildEventsView(),
+      _buildCommitteeView(),
+      _buildContactView(),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF005088),
+        foregroundColor: Colors.white,
+        title: const Text(
+          "Dhaka College Science Club",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(_isAdmin ? Icons.admin_panel_settings : Icons.lock_outline),
+            tooltip: _isAdmin ? "Admin Active" : "Admin Login",
+            onPressed: _isAdmin
+                ? () {
+                    setState(() => _isAdmin = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Admin logged out")),
+                    );
+                  }
+                : _loginAdmin,
+          ),
+        ],
+      ),
+      body: pages[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: "Home"),
+          NavigationDestination(icon: Icon(Icons.event), label: "Events"),
+          NavigationDestination(icon: Icon(Icons.group), label: "Committee"),
+          NavigationDestination(icon: Icon(Icons.contact_support), label: "Contact"),
+        ],
+      ),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                if (_selectedIndex == 1) _addEventDialog();
+                if (_selectedIndex == 2) _addMemberDialog();
+              },
+              backgroundColor: const Color(0xFF11CAA0),
+              icon: const Icon(Icons.add),
+              label: Text(_selectedIndex == 1 ? "Add Event" : "Add Member"),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildHomeView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF005088), Color(0xFF0073B7)],
+              ),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 20),
-            const Text('Quick Access', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: const [
-                _QuickAccessCard(icon: Icons.campaign, label: 'Notice'),
-                _QuickAccessCard(icon: Icons.event, label: 'Events'),
-                _QuickAccessCard(icon: Icons.people, label: 'Members'),
-                _QuickAccessCard(icon: Icons.image, label: 'Gallery'),
-                _QuickAccessCard(icon: Icons.menu_book, label: 'Resources'),
-                _QuickAccessCard(icon: Icons.phone, label: 'Contact'),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.science, color: Colors.white, size: 48),
+                SizedBox(height: 10),
+                Text(
+                  "Welcome to DCSC",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  "Promoting science, innovation, and research at Dhaka College.",
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
               ],
             ),
-            const SizedBox(height: 20),
-            const Text('Upcoming Event', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.event, color: Colors.deepPurple),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Science Fest 2025', style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text('20 July, 2025', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4C1D95),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () {},
-                      child: const Text('Details', style: TextStyle(color: Colors.white, fontSize: 12)),
-                    )
-                  ],
-                ),
-              ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "Recent Highlights",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const ListTile(
+              leading: Icon(Icons.campaign, color: Color(0xFF005088)),
+              title: Text("Science Fair Registration Open!"),
+              subtitle: Text("Submit your projects before March 20."),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-}
 
-class _QuickAccessCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
+  Widget _buildEventsView() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _events.length,
+      itemBuilder: (context, idx) {
+        final ev = _events[idx];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            title: Text(ev["title"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Date: ${ev['date']}", style: const TextStyle(color: Color(0xFF005088))),
+                Text(ev["desc"] ?? ""),
+              ],
+            ),
+            trailing: _isAdmin
+                ? IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      setState(() => _events.removeAt(idx));
+                    },
+                  )
+                : null,
+          ),
+        );
+      },
+    );
+  }
 
-  const _QuickAccessCard({required this.icon, required this.label});
+  Widget _buildCommitteeView() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _members.length,
+      itemBuilder: (context, idx) {
+        final m = _members[idx];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: const Color(0xFF005088),
+              child: Text(m["name"]![0], style: const TextStyle(color: Colors.white)),
+            ),
+            title: Text(m["name"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("${m['role']} - ${m['dept']}"),
+            trailing: _isAdmin
+                ? IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      setState(() => _members.removeAt(idx));
+                    },
+                  )
+                : null,
+          ),
+        );
+      },
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
+  Widget _buildContactView() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: const Color(0xFF4C1D95), size: 28),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text("Contact Info", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Divider(),
+          SizedBox(height: 10),
+          ListTile(
+            leading: Icon(Icons.location_on, color: Color(0xFF005088)),
+            title: Text("Dhaka College Campus"),
+            subtitle: Text("Mirpur Rd, Dhaka 1205"),
+          ),
+          ListTile(
+            leading: Icon(Icons.email, color: Color(0xFF005088)),
+            title: Text("Email Us"),
+            subtitle: Text("contact@dcsc.org"),
+          ),
+          ListTile(
+            leading: Icon(Icons.facebook, color: Color(0xFF005088)),
+            title: Text("Facebook Page"),
+            subtitle: Text("facebook.com/dcsc.official"),
+          ),
         ],
       ),
-    );
-  }
-}
-
-// ---------------- Placeholder Tabs ----------------
-class NoticeTab extends StatelessWidget {
-  const NoticeTab({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notice'), backgroundColor: const Color(0xFF1E1B4B)),
-      body: const Center(child: Text('Notice List View')),
-    );
-  }
-}
-
-class EventsTab extends StatelessWidget {
-  const EventsTab({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Events'), backgroundColor: const Color(0xFF1E1B4B)),
-      body: const Center(child: Text('Events Grid View')),
-    );
-  }
-}
-
-class GalleryTab extends StatelessWidget {
-  const GalleryTab({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Gallery'), backgroundColor: const Color(0xFF1E1B4B)),
-      body: const Center(child: Text('Gallery Photos Grid')),
-    );
-  }
-}
-
-class MoreTab extends StatelessWidget {
-  const MoreTab({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('More Options'), backgroundColor: const Color(0xFF1E1B4B)),
-      body: const Center(child: Text('Members Directory & Contact Info')),
     );
   }
 }
